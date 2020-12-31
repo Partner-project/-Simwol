@@ -16,12 +16,14 @@
 #include "Animation/AnimMontage.h"
 #include "Components/BoxComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/InputComponent.h"
 #include "Enemy.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Sound/SoundCue.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "MainPlayerController.h"
-
+#include "BossPlayerController.h"
+#include "BossEnemy.h"
 // Sets default values
 AMainCharacter::AMainCharacter()
 {
@@ -37,36 +39,36 @@ AMainCharacter::AMainCharacter()
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
 
-	// ¿Ş¼Õ
+	// ì™¼ì†
 	LeftHandCombatCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("LeftHandCombatCollision"));
 	LeftHandCombatCollision->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, FName("LeftHandSocket"));
 
-	// ¿À¸¥¼Õ
+	// ì˜¤ë¥¸ì†
 	RightHandCombatCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("RightHandCombatCollision"));
 	RightHandCombatCollision->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, FName("RightHandSocket"));
 
-	//¿Ş¹ß
+	//ì™¼ë°œ
 	LeftTobaseCombatCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("LeftTobaseCombatCollision"));
 	LeftTobaseCombatCollision->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, FName("LeftToeBaseSocket"));
 
-	//¿À¸¥¹ß
+	//ì˜¤ë¥¸ë°œ
 	RightTobaseCombatCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("RightTobaseCombatCollision"));
 	RightTobaseCombatCollision->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, FName("RightToeBaseSocket"));
 
-	// È¸Àü¼Óµµ 
+	// íšŒì „ì†ë„ 
 	BaseTurnRate = 65.f;
 	BaseLookupRate = 65.f;
 
-	// È¸Àü½Ã¿¡ È¸ÀüÀ» ÇÏÁö¸øÇÏµµ·Ï¸·À½ (Ä«¸Ş¶ó ¿¡¸¸ ÇØ´ç) 
+	// íšŒì „ì‹œì— íšŒì „ì„ í•˜ì§€ëª»í•˜ë„ë¡ë§‰ìŒ (ì¹´ë©”ë¼ ì—ë§Œ í•´ë‹¹) 
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationRoll = false;
 
-	// Ä³¸¯ÅÍ ¿òÁ÷ÀÓ ÀÔ·Â 
-	GetCharacterMovement()->bOrientRotationToMovement = true; // Ä³¸¯ÅÍ°¡ ÀÔ·Â¹Ş´Â ¹æÇâÀ¸·Î ¿òÁ÷ÀÓ
+	// ìºë¦­í„° ì›€ì§ì„ ì…ë ¥ 
+	GetCharacterMovement()->bOrientRotationToMovement = true; // ìºë¦­í„°ê°€ ì…ë ¥ë°›ëŠ” ë°©í–¥ìœ¼ë¡œ ì›€ì§ì„
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 540.f, 0.0f);
 	
-	// Á¡ÇÁ 
+	// ì í”„ 
 	GetCharacterMovement()->JumpZVelocity = 150.f;
 	GetCharacterMovement()->AirControl = 0.2;
 
@@ -77,6 +79,9 @@ AMainCharacter::AMainCharacter()
 	bHasCombatTarget = false;
 
 	bShiftKeyDown = false;
+	bSkillDown = false;
+
+	//bSkill_Key_Down = false;
 
 	MaxHealth = 300.f;
 	Health = 65.f;
@@ -91,7 +96,9 @@ AMainCharacter::AMainCharacter()
 
 	StaminaStatus = EStaminaStatus::ESS_Normal;
 
-	Damage = 20.f;
+	Damage = 15.f;
+
+	SkillDamage = 35.f;
 
 	PlayerLevel = 1;
 
@@ -139,6 +146,8 @@ void AMainCharacter::BeginPlay()
 	RightTobaseCombatCollision->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
 
 	MainPlayerController = Cast<AMainPlayerController>(GetController());
+	BossPlayerController = Cast<ABossPlayerController>(GetController());
+	
 	
 }
 
@@ -258,6 +267,16 @@ void AMainCharacter::Tick(float DeltaTime)
 			MainPlayerController->EnemyLocation = CombatTargetLocation;
 		}
 	}
+	if (BossEnemyCombatTarget)
+	{
+		//12/06ì¼ BossPlayerController
+		BossCombatTargetLocation = BossEnemyCombatTarget->GetActorLocation();
+		
+		if (BossPlayerController)
+		{
+			BossPlayerController->BossEnemyLocation = BossCombatTargetLocation;
+		}
+	}
 }
 
 FRotator AMainCharacter::GetLookAtRotaionYaw(FVector Target)
@@ -267,6 +286,16 @@ FRotator AMainCharacter::GetLookAtRotaionYaw(FVector Target)
 
 	return LookAtRotationYaw;
 }
+
+// 12/12
+FRotator AMainCharacter::GetBossLookAtRotaionYaw(FVector BossTarget)
+{
+	FRotator BossLookAtRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), BossTarget);
+	FRotator BossLookAtRotationYaw(0.f, BossLookAtRotation.Yaw, 0.f);
+
+	return BossLookAtRotationYaw;
+}
+
 
 // Called to bind functionality to input
 void AMainCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -280,6 +309,13 @@ void AMainCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 	PlayerInputComponent->BindAction("Attack", IE_Pressed,this, &AMainCharacter::AttackMelee);
 	PlayerInputComponent->BindAction("Attack", IE_Released, this, &AMainCharacter::AttackMeleeEnd);
 
+	//Player Skill Bind Key Setting
+	PlayerInputComponent->BindAction("Skill_1", IE_Pressed, this, &AMainCharacter::SkillKeyDown);
+	PlayerInputComponent->BindAction("Skill_1", IE_Released, this, &AMainCharacter::SkillKeyup);
+
+	PlayerInputComponent->BindAction("Skill_2", IE_Pressed, this, &AMainCharacter::SkillKeyDown_two);
+	PlayerInputComponent->BindAction("Skill_2", IE_Released, this, &AMainCharacter::SkillKeyup_two);
+
 	PlayerInputComponent->BindAxis("MoveForward", this, &AMainCharacter::MoveForward);
 	PlayerInputComponent->BindAxis("MoveRight", this, &AMainCharacter::MoveRight);
 
@@ -289,7 +325,7 @@ void AMainCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 	PlayerInputComponent->BindAxis("TurnRate", this, &AMainCharacter::TurnAtRate);
 	PlayerInputComponent->BindAxis("LookUpRate", this, &AMainCharacter::LookUpAtRate);
 
-	// ¹«±â ±³Ã¼ ¹öÆ° 
+	// ë¬´ê¸° êµì²´ ë²„íŠ¼ 
 	PlayerInputComponent->BindAction("LMB", IE_Pressed, this, &AMainCharacter::LMBDown);
 	PlayerInputComponent->BindAction("LMB", IE_Released, this, &AMainCharacter::LMBup);
 
@@ -338,7 +374,7 @@ void AMainCharacter::LMBDown()
 
 	if (MovementStatus == EMovementStatus::EMS_Dead) return;
 
-	// ¹«±â ±³Ã¼ 
+	// ë¬´ê¸° êµì²´ 
 	if (ActiveOverlappingItem)
 	{
 		AWeaponKatana* katana = Cast<AWeaponKatana>(ActiveOverlappingItem);
@@ -353,7 +389,7 @@ void AMainCharacter::LMBDown()
 		AttackMelee();
 	}
 }
-// »õ·Î¿î ¹«±â ÀåÂø½Ã ÆÄ±« 
+// ìƒˆë¡œìš´ ë¬´ê¸° ì¥ì°©ì‹œ íŒŒê´´ 
 void AMainCharacter::SetEquippedWeapon(AWeaponKatana* WeaponToSet)
 {
 	if (Equippedweapon)
@@ -437,6 +473,7 @@ void AMainCharacter::PlayerCombatOnOverlapBegin(UPrimitiveComponent* OverlappedC
 	if (OtherActor)
 	{
 		AEnemy* Enemy = Cast<AEnemy>(OtherActor);
+		ABossEnemy* Boss = Cast<ABossEnemy>(OtherActor);
 		if (Enemy)
 		{
 			if (Enemy->EnemyHitParticle)
@@ -444,21 +481,46 @@ void AMainCharacter::PlayerCombatOnOverlapBegin(UPrimitiveComponent* OverlappedC
 				const USkeletalMeshSocket* LeftHandParticleSocket = GetMesh()->GetSocketByName("LeftHandParticleSocket");
 				const USkeletalMeshSocket* RightHandParticleSocket = GetMesh()->GetSocketByName("RightHandParticleSocket");
 				const USkeletalMeshSocket* RightToeBaseParticleSocket = GetMesh()->GetSocketByName("RightToeBaseParticleSocket");
+
+				//ìŠ¤í‚¬ ì†Œì¼“
+				const USkeletalMeshSocket* LeftToeBaseSocket = GetMesh()->GetSocketByName("LeftToeBaseSocket");
+				const USkeletalMeshSocket* RightToeBaseSocket = GetMesh()->GetSocketByName("RightToeBaseSocket");
 				
 				if (LeftHandParticleSocket)
 				{
 					FVector SocketLocation = LeftHandParticleSocket->GetSocketLocation(GetMesh());
 					UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Enemy->EnemyHitParticle, SocketLocation, FRotator(0.f), false);
+					
 				}
 				else if (RightHandParticleSocket)
 				{
 					FVector SocketLocations = LeftHandParticleSocket->GetSocketLocation(GetMesh());
 					UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Enemy->EnemyHitParticle, SocketLocations, FRotator(0.f), false);
+					
 				}
 				else if (RightToeBaseParticleSocket)
 				{
 					FVector SocketLocationd = LeftHandParticleSocket->GetSocketLocation(GetMesh());
 					UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Enemy->EnemyHitParticle, SocketLocationd, FRotator(0.f), false);
+				
+				}
+				else if (LeftToeBaseSocket)
+				{
+					FVector SkillSocketLocation_L = LeftToeBaseSocket->GetSocketLocation(GetMesh());
+					UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Enemy->EnemyHitParticle, SkillSocketLocation_L, FRotator(0.f), false);
+				}
+				else if (RightToeBaseSocket)
+				{
+					FVector SkillSocketLocation_R = RightToeBaseSocket->GetSocketLocation(GetMesh());
+					UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Enemy->EnemyHitParticle, SkillSocketLocation_R, FRotator(0.f), false);
+				}
+				if (bHaseSkillHit)
+				{
+					if (LeftToeBaseSocket)
+					{
+						FVector SkillSocketLocations = LeftToeBaseSocket->GetSocketLocation(GetMesh());
+						UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Enemy->EnemyHitParticle, SkillSocketLocations, FRotator(0.f), false);
+					}
 				}
 			}
 			if (Enemy->EnemyLastHitParticle)
@@ -468,17 +530,95 @@ void AMainCharacter::PlayerCombatOnOverlapBegin(UPrimitiveComponent* OverlappedC
 				{
 					FVector LastSocketLocation = LeftToeBaseParticleSocket->GetSocketLocation(GetMesh());
 					UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Enemy->EnemyLastHitParticle, LastSocketLocation, FRotator(0.f), false);
+					
 				}
 			}
 			if (Enemy->PlayerHitSound)
 			{
 				UGameplayStatics::PlaySound2D(this, Enemy->PlayerHitSound);
 			}
+			
 			if (DamageTypeClass)
 			{
 				UGameplayStatics::ApplyDamage(Enemy, Damage, PauchInstigator,this, DamageTypeClass);
+				if (bHaseSkillHit)
+				{
+					UGameplayStatics::ApplyDamage(Enemy, SkillDamage, PauchInstigator, this, DamageTypeClass);
+				}
+				
 			}
 			
+		}
+		if (Boss)
+		{
+			if (Boss->BossHitParticle)
+			{
+				const USkeletalMeshSocket* LeftHandParticleSocket = GetMesh()->GetSocketByName("LeftHandParticleSocket");
+				const USkeletalMeshSocket* RightHandParticleSocket = GetMesh()->GetSocketByName("RightHandParticleSocket");
+				const USkeletalMeshSocket* RightToeBaseParticleSocket = GetMesh()->GetSocketByName("RightToeBaseParticleSocket");
+
+				//ìŠ¤í‚¬ ì†Œì¼“
+				const USkeletalMeshSocket* LeftToeBaseSocket = GetMesh()->GetSocketByName("LeftToeBaseSocket");
+				const USkeletalMeshSocket* RightToeBaseSocket = GetMesh()->GetSocketByName("RightToeBaseSocket");
+
+				if (LeftHandParticleSocket)
+				{
+					FVector SocketLocation = LeftHandParticleSocket->GetSocketLocation(GetMesh());
+					UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Boss->BossHitParticle, SocketLocation, FRotator(0.f), false);
+
+				}
+				else if (RightHandParticleSocket)
+				{
+					FVector SocketLocations = LeftHandParticleSocket->GetSocketLocation(GetMesh());
+					UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Boss->BossHitParticle, SocketLocations, FRotator(0.f), false);
+
+				}
+				else if (RightToeBaseParticleSocket)
+				{
+					FVector SocketLocationd = LeftHandParticleSocket->GetSocketLocation(GetMesh());
+					UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Boss->BossHitParticle, SocketLocationd, FRotator(0.f), false);
+
+				}
+				// ìŠ¤í‚¬ ì†Œì¼“ 
+				else if (LeftToeBaseSocket)
+				{
+					FVector SkillSocketLocation_L = LeftToeBaseSocket->GetSocketLocation(GetMesh());
+					UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Boss->BossHitParticle, SkillSocketLocation_L, FRotator(0.f), false);
+				}
+				else if (RightToeBaseSocket)
+				{
+					FVector SkillSocketLocation_R = RightToeBaseSocket->GetSocketLocation(GetMesh());
+					UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Boss->BossHitParticle, SkillSocketLocation_R, FRotator(0.f), false);
+				}
+				if (bHaseSkillHit)
+				{
+					if (LeftToeBaseSocket)
+					{
+						FVector SkillSocketLocations_L = LeftToeBaseSocket->GetSocketLocation(GetMesh());
+						UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Boss->BossHitParticle, SkillSocketLocations_L, FRotator(0.f), false);
+					}
+				}
+			}
+			if (Boss->LastBossHitParticle)
+			{
+				const USkeletalMeshSocket* LeftToeBaseParticleSocket = GetMesh()->GetSocketByName("LeftToeBaseParticleSocket");
+				if (LeftToeBaseParticleSocket)
+				{
+					FVector LastSocketLocation = LeftToeBaseParticleSocket->GetSocketLocation(GetMesh());
+					UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Boss->LastBossHitParticle, LastSocketLocation, FRotator(0.f), false);
+
+				}
+			}
+			if (BossDamageTypeClass)
+			{
+				UGameplayStatics::ApplyDamage(Boss, Damage, BossPauchInstigator, this, BossDamageTypeClass);
+
+				if (bHaseSkillHit)
+				{
+					UGameplayStatics::ApplyDamage(Boss, SkillDamage, BossPauchInstigator, this, BossDamageTypeClass);
+				}
+			}
+
 		}
 	}
 }
@@ -492,7 +632,7 @@ void AMainCharacter::PlayerCombatOnOverlapEnd(UPrimitiveComponent* OverlappedCom
 
 		if (Enemy)
 		{
-			// ÇÃ·¹ÀÌ¾î °æÇèÄ¡ È¹µæ
+			// í”Œë ˆì´ì–´ ê²½í—˜ì¹˜ íšë“
 			if (Enemy->Health == 0)
 			{
 				PlayerExp += Enemy->Exp;
@@ -589,6 +729,35 @@ void AMainCharacter::LastDeactivateCollision()
 }
 
 
+
+void AMainCharacter::SkillAttack_Brake()
+{
+	LeftTobaseCombatCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	RightTobaseCombatCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+}
+
+
+void AMainCharacter::SkillAttack_BrakeEnd()
+{
+	LeftTobaseCombatCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	RightTobaseCombatCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+
+void AMainCharacter::SkillAttack_Dance()
+{
+	LeftTobaseCombatCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	RightTobaseCombatCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+}
+
+
+void AMainCharacter::SkillAttack_DanceEnd()
+{
+	LeftTobaseCombatCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	RightTobaseCombatCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+
 void AMainCharacter::SetInterpToEnemy(bool Interp)
 {
 	bInterpToEnemy = Interp;
@@ -605,9 +774,14 @@ float AMainCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const &
 		if (DamageCauser)
 		{
 			AEnemy* Enemy = Cast<AEnemy>(DamageCauser);
+			ABossEnemy* Boss = Cast<ABossEnemy>(DamageCauser);
 			if (Enemy)
 			{
 				Enemy->bHasValidTarget = false;
+			}
+			if (Boss)
+			{
+				Boss->bHasValidTarget = false;
 			}
 		}
 	}
@@ -633,23 +807,33 @@ void AMainCharacter::PlayerLevelText(int32 Level)
 		PlayerLevel += Level;
 	}
 }
-	
-
-	
-	
-
-
-
-/*
-// »óÀÚ¿¡¼­ ³ª¿Â¹«±â ÀåÂø 
-void AMainCharacter::SetWeapon(class AWeaponKatana* NewWeapon)
+void AMainCharacter::SkillKeyDown()
 {
-	FName WeaponSocket(TEXT("RightHandSocket"));
-	if (nullptr != NewWeapon)
+	bHaseSkillHit = true;
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (!bSkillDown)
 	{
-		NewWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocket);
-		NewWeapon->SetOwner(this);
-		Equippedweapon = NewWeapon;
+		if (AnimInstance)
+		{
+			AnimInstance->Montage_Play(SkillAttack, 1.2f);
+			AnimInstance->Montage_JumpToSection(FName("SkillAttack"), SkillAttack);
+		}
+		//if (MainPlayerController->IsInputKeyDown(EKeys::NumPadOne) && AnimInstance)
+		
 	}
 }
-*/
+void AMainCharacter::SkillKeyDown_two()
+{
+	bHaseSkillHit = true;
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (!bSkillDown)
+	{
+		if (AnimInstance)
+		{
+			AnimInstance->Montage_Play(SkillAttack, 1.2f);
+			AnimInstance->Montage_JumpToSection(FName("SkillAttack_2"), SkillAttack);
+		}
+	}
+}
+
+	
