@@ -38,6 +38,9 @@ public:
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly,Category = "Controller")
 	class AMainPlayerController* MainPlayerController;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Controller")
+	class ABossPlayerController* BossPlayerController;
+
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class USpringArmComponent* CameraBoom;
 
@@ -56,18 +59,21 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadwrite, Category = "Combat")
 	class UBoxComponent* RightTobaseCombatCollision;
 
-	// ÇÃ·¹ÀÌ¾î°¡ ÇÇ°İÀ» ´çÇßÀ»¶§ ³ª¿Â´Â ÀÌÆåÆ® 
+	// í”Œë ˆì´ì–´ê°€ í”¼ê²©ì„ ë‹¹í–ˆì„ë•Œ ë‚˜ì˜¨ëŠ” ì´í™íŠ¸ 
 	UPROPERTY(EditAnywhere,BlueprintReadwrite,Category = "Combat")
 	class UParticleSystem* PlayerHitParticles;
 
-	// ¸ó½ºÅÍ°¡ ÇÃ·¹ÀÌ¾î ‹š¸±¶§ »ç¿îµå 
+	UPROPERTY(EditAnywhere, BlueprintReadwrite, Category = "Combat")
+	class UParticleSystem* BossPlayerHitParticles;
+
+	// ëª¬ìŠ¤í„°ê°€ í”Œë ˆì´ì–´ ë–„ë¦´ë•Œ ì‚¬ìš´ë“œ 
 	UPROPERTY(EditAnywhere, BlueprintReadwrite, Category = "Combat")
 	class USoundCue* EnemyHitSound;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly,Category ="Combat")
 	class AEnemy* CombatTarget;
 
-	// º¸½º ¸ó½ºÅÍ·Î Å¸°ÙÆÃ
+	// ë³´ìŠ¤ ëª¬ìŠ¤í„°ë¡œ íƒ€ê²ŸíŒ…
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
 	class ABossEnemy* BossEnemyCombatTarget;
 
@@ -117,8 +123,26 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = Attack)
 	UAnimMontage* LastAttackCombo;
 
+	UPROPERTY(EditDefaultsOnly, Category = Attack)
+	UAnimMontage* SkillAttack;
+
 	UPROPERTY(EditAnywhere, BlueprintReadwrite, Category = "AI")
 	float Damage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadwrite, Category = "AI")
+	float SkillDamage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attack")
+	bool bHaseSkillHit;
+	
+	//Skill Key ëˆŒë ¸ì„ë•Œ 
+	UPROPERTY(EditAnywhere, BlueprintReadwrite, Category = "Combat")
+	bool bSkillDown;
+
+	//UPROPERTY(EditAnywhere, BlueprintReadwrite, Category = "Combat")
+	//bool bSkill_Key_Down;
+
+	
 
 
 
@@ -152,6 +176,14 @@ public:
 
 	void PlayerLevelText(int32 Level);
 
+	void SkillKeyDown();
+
+	void SkillKeyDown_two();
+
+	//ìŠ¤í‚¬ í‚¤ ê°€ í´ë¦­ì´ì•ˆë˜ì—ˆì„ë–„ True ë¥¼í•´ì£¼ê¸°ë–„ë¬¸ì— ì²˜ìŒë¶€í„° False ë¡œ ì‘ì„±
+	FORCEINLINE void SkillKeyup() { bSkillDown = false; }
+	FORCEINLINE void SkillKeyup_two() { bSkillDown = false; }
+
 	FORCEINLINE void SetMovementStatus(EMovementStatus Status) { MovementStatus = Status; }
 
 	virtual float TakeDamage(float DamageAmount,struct FDamageEvent const & DamageEvent,class AController * EventInstigator,AActor * DamageCauser) override;
@@ -168,6 +200,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere,BlueprintReadwrite,Category = "Combat")
 	FVector CombatTargetLocation;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadwrite, Category = "Combat")
+	FVector BossCombatTargetLocation;
 
 	UFUNCTION(BlueprintCallable)
 	void ActivateCollision();
@@ -199,21 +234,34 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void AttackMeleeEnd();
 
+	UFUNCTION(BlueprintCallable)
+	void SkillAttack_Brake();
+
+	UFUNCTION(BlueprintCallable)
+	void SkillAttack_BrakeEnd();
+
+	UFUNCTION(BlueprintCallable)
+	void SkillAttack_Dance();
+
+	UFUNCTION(BlueprintCallable)
+	void SkillAttack_DanceEnd();
+	
+
 	void LMBDown();
 	void LMBup() { bLMBDown = false; }
 	bool bLMBDown;
 
-	// °ø°İ ¸ØÃã ½ºÀ§Ä¡ 
+	// ê³µê²© ë©ˆì¶¤ ìŠ¤ìœ„ì¹˜ 
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly,Category = "Anims")
 	bool isDuringAttack;
 
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly,Category ="Combat")
 	bool bHasCombatTarget;
 
-	// ¹«±â »ı¼º true/false
+	// ë¬´ê¸° ìƒì„± true/false
 	bool CanSetWeapon();
 
-	// Àû¿¡°Ô º¸°£ (°ø°İÇÒ¶§ ÀûÀÇ ¹æÇâÀ» º½) 
+	// ì ì—ê²Œ ë³´ê°„ (ê³µê²©í• ë•Œ ì ì˜ ë°©í–¥ì„ ë´„) 
 	float InterpSpeed;
 
 	UPROPERTY(EditAnywhere,BlueprintReadwrite,Category = "movement")
@@ -230,28 +278,30 @@ public:
 
 	FRotator GetLookAtRotaionYaw(FVector Target);
 
+	FRotator GetBossLookAtRotaionYaw(FVector BossTarget);
+
 	//void SetWeapon(class AWeaponKatana* NewWeapon);
 
-	//¹«±â »ı¼º(?)
+	//ë¬´ê¸° ìƒì„±(?)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = items)
 	class AWeaponKatana* Equippedweapon;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = items)
 	class Aitem* ActiveOverlappingItem;
 
-	//ÀåÂøÇÒ ¹«±â ¼³Á¤
+	//ì¥ì°©í•  ë¬´ê¸° ì„¤ì •
 	void SetEquippedWeapon(AWeaponKatana* WeaponToSet);
 	FORCEINLINE AWeaponKatana* GetEquippedWeapon() { return Equippedweapon; }
 
-	//¹«±â ±³Ã¼ ¼³Á¤
+	//ë¬´ê¸° êµì²´ ì„¤ì •
 	FORCEINLINE void SetActiveOverlapping(Aitem* item) { ActiveOverlappingItem = item; }
 
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera ; }
 
-	// Àû ¿¡°Ô º¸°£ 
+	// ì  ì—ê²Œ ë³´ê°„ 
 	FORCEINLINE void SetCombatTarget(AEnemy* Target) { CombatTarget = Target; }
-	//FORCEINLINE void SetBossCombatTarget(ABossEnemy* BossTarget) { BossEnemyCombatTarget = BossTarget; }
+	FORCEINLINE void SetBossCombatTarget(ABossEnemy* BossTarget) { BossEnemyCombatTarget = BossTarget; }
 
 	UFUNCTION()
 	virtual void PlayerCombatOnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult & SweepResult);
@@ -262,13 +312,22 @@ public:
 	UPROPERTY(EditAnywhere,BlueprintReadwrite,Category = "Combat")
 	TSubclassOf<UDamageType> DamageTypeClass;
 
+	UPROPERTY(EditAnywhere, BlueprintReadwrite, Category = "Combat")
+	TSubclassOf<UDamageType> BossDamageTypeClass;
+
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly,Category ="Combat")
 	AController* PauchInstigator;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	AController* BossPauchInstigator;
+
 	FORCEINLINE void SetInstigator(AController* Inst) { PauchInstigator = Inst; }
 
+	FORCEINLINE void SetBossInstigator(AController* BossInst) { BossPauchInstigator = BossInst; }
+
 	FORCEINLINE void SetHasCombatTarget(bool HasTarget) { bHasCombatTarget = HasTarget; }
-	
+
+	FORCEINLINE void SetHasBossCombatTarget(bool BossHasTarget) { bHasCombatTarget = BossHasTarget; }
 	
 
 
